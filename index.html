@@ -3,215 +3,180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Portrait Player - Drag & Reveal</title>
+    <title>Fixed Netflix Portrait Player</title>
     <style>
-        /* Dasar & Reset */
+        :root { --n-red: #E50914; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background-color: #000; overflow: hidden; font-family: 'Inter', sans-serif; color: white; }
+        body { background: #000; overflow: hidden; font-family: 'Arial', sans-serif; color: #fff; }
 
-        .main-wrapper {
+        /* Container */
+        .main-app {
             position: relative; width: 100%; height: 100vh;
             display: flex; justify-content: center; align-items: center;
         }
 
-        /* Container Video Portrait */
-        .player-card {
-            position: relative; height: 90vh; aspect-ratio: 9/16;
-            background: #111; border-radius: 16px; overflow: hidden;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
-            opacity: 0; transform: scale(0.9);
+        /* Video Styling */
+        .video-box {
+            position: relative; height: 100vh; aspect-ratio: 9/16;
+            background: #000; overflow: hidden; z-index: 5;
+            opacity: 0; transform: scale(1.1);
             transition: all 1.5s cubic-bezier(0.16, 1, 0.3, 1);
-            z-index: 5;
         }
-
         video { width: 100%; height: 100%; object-fit: cover; }
 
-        /* Overlay Tirai */
+        /* Curtain / Tirai */
         .curtain {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 10; display: flex; pointer-events: none;
+            z-index: 20; display: flex; pointer-events: none;
         }
-        .curtain-side { flex: 1; background: #0a0a0a; transition: 1.5s cubic-bezier(0.7, 0, 0.3, 1); }
+        .curtain-panel { flex: 1; background: #000; transition: 1.5s ease-in-out; }
 
-        /* Start Overlay */
-        .start-overlay {
-            position: absolute; z-index: 11; width: 100%; text-align: center;
-            cursor: pointer; transition: 0.5s;
+        /* Overlay Awal */
+        .tap-overlay {
+            position: absolute; z-index: 30; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.5); cursor: pointer;
         }
-        .start-overlay h1 { font-size: 1.2rem; letter-spacing: 10px; font-weight: 200; }
+        .tap-overlay h1 { font-size: 1.2rem; letter-spacing: 10px; font-weight: 200; border: 1px solid #fff; padding: 20px; }
 
-        /* Custom UI Controls */
-        .ui-controls {
+        /* Netflix Controls */
+        .controls {
             position: absolute; bottom: 0; left: 0; width: 100%;
             background: linear-gradient(transparent, rgba(0,0,0,0.9));
-            padding: 20px; opacity: 0; transition: 0.4s; z-index: 6;
+            padding: 30px 20px; z-index: 10; opacity: 0; transition: 0.4s;
         }
-        .player-card:hover .ui-controls { opacity: 1; }
+        .video-box:hover .controls { opacity: 1; }
 
-        /* Progress Bar / Slider */
-        .seek-container {
-            display: flex; align-items: center; gap: 10px; margin-bottom: 15px;
-        }
-        #seekSlider {
-            flex: 1; cursor: pointer; accent-color: #ff0000; height: 5px;
-        }
-        .time-label { font-size: 12px; font-family: monospace; min-width: 35px; }
+        .progress-container { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+        .bar-bg { flex: 1; height: 4px; background: rgba(255,255,255,0.3); cursor: pointer; border-radius: 2px; }
+        .bar-fill { width: 0%; height: 100%; background: var(--n-red); border-radius: 2px; }
 
-        /* Buttons Row */
-        .btn-group { display: flex; justify-content: space-around; align-items: center; }
-        .btn {
-            background: none; border: none; fill: white; cursor: pointer;
-            padding: 8px; transition: 0.2s;
-        }
-        .btn:hover { transform: scale(1.2); fill: #ff0000; }
-        .btn svg { width: 22px; height: 22px; }
+        .btns { display: flex; justify-content: space-between; align-items: center; }
+        .btn-group { display: flex; gap: 20px; align-items: center; }
+        .btn { background: none; border: none; fill: #fff; cursor: pointer; width: 28px; }
+        .next-btn { background: #fff; color: #000; padding: 8px 15px; border-radius: 4px; font-weight: bold; border: none; cursor: pointer; }
 
-        /* States */
-        .is-loaded .left-side { transform: translateX(-100%); }
-        .is-loaded .right-side { transform: translateX(100%); }
-        .is-loaded .player-card { opacity: 1; transform: scale(1); }
-        .is-loaded .start-overlay { opacity: 0; visibility: hidden; }
+        /* Animasi Aktif */
+        .active .left { transform: translateX(-100%); }
+        .active .right { transform: translateX(100%); }
+        .active .video-box { opacity: 1; transform: scale(1); }
+        .active .tap-overlay { display: none; }
 
-        /* Responsive Mobile */
         @media (max-width: 768px) {
-            .player-card { height: 100vh; width: 100vw; border-radius: 0; }
-            .ui-controls { opacity: 1; padding-bottom: 50px; }
+            .video-box { width: 100vw; height: 100vh; }
+            .controls { opacity: 1; padding-bottom: 50px; }
         }
     </style>
 </head>
 <body>
 
-    <div class="main-wrapper" id="mainApp">
-        <!-- Reveal Curtain -->
+    <div class="main-app" id="app">
         <div class="curtain">
-            <div class="curtain-side left-side"></div>
-            <div class="curtain-side right-side"></div>
+            <div class="curtain-panel left"></div>
+            <div class="curtain-panel right"></div>
         </div>
 
-        <!-- Start Trigger -->
-        <div class="start-overlay" id="enterBtn">
-            <h1>TAP TO ENTER</h1>
+        <div class="tap-overlay" id="startTrigger">
+            <h1>TAP TO WATCH</h1>
         </div>
 
-        <!-- Player Container -->
-        <div class="player-card" id="videoContainer">
-            <video id="v" playsinline loop>
-                <source src="https://www.dropbox.com/scl/fi/jlxvc07bs0vjpq0srk5a4/MOGM.mov?rlkey=9d7ev9ht0mjl3nvpqtddeh1n4&raw=1" type="video/mp4">
-            </video>
+        <div class="video-box" id="p">
+            <video id="vid" playsinline preload="auto" muted></video>
 
-            <!-- Custom Controls -->
-            <div class="ui-controls">
-                
-                <!-- Drag Seeker -->
-                <div class="seek-container">
-                    <span class="time-label" id="curTime">00:00</span>
-                    <input type="range" id="seekSlider" value="0" min="0" step="0.1">
-                    <span class="time-label" id="durTime">00:00</span>
+            <div class="controls">
+                <div class="progress-container">
+                    <span id="t1" style="font-size:12px">0:00</span>
+                    <div class="bar-bg" id="barBg"><div class="bar-fill" id="barFill"></div></div>
+                    <span id="t2" style="font-size:12px">0:00</span>
                 </div>
-
-                <div class="btn-group">
-                    <!-- Stop -->
-                    <button class="btn" onclick="stopVid()"><svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg></button>
-                    
-                    <!-- Fast Backward (Hold) -->
-                    <button class="btn" onmousedown="startRev()" onmouseup="endRev()" ontouchstart="startRev()" ontouchend="endRev()">
-                        <svg viewBox="0 0 24 24"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
-                    </button>
-
-                    <!-- Play / Pause -->
-                    <button class="btn" onclick="toggleV()"><svg id="pIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
-
-                    <!-- Fast Forward (Hold) -->
-                    <button class="btn" onmousedown="fwd()" onmouseup="nrm()" ontouchstart="fwd()" ontouchend="nrm()">
-                        <svg viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
-                    </button>
-
-                    <!-- Fullscreen -->
-                    <button class="btn" onclick="fullS()"><svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></button>
+                <div class="btns">
+                    <div class="btn-group">
+                        <button class="btn" onclick="skip(-10)"><svg viewBox="0 0 24 24"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg></button>
+                        <button class="btn" onclick="togglePlay()"><svg id="playIco" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+                        <button class="btn" onclick="skip(10)"><svg viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg></button>
+                    </div>
+                    <button class="next-btn" onclick="playNext()">NEXT VIDEO</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        const v = document.getElementById('v');
-        const app = document.getElementById('mainApp');
-        const enterBtn = document.getElementById('enterBtn');
-        const pIcon = document.getElementById('pIcon');
-        const seek = document.getElementById('seekSlider');
-        const curTxt = document.getElementById('curTime');
-        const durTxt = document.getElementById('durTime');
-        
-        let revTask;
+        // DAFTAR VIDEO (Wajib Direct Link &raw=1 untuk Dropbox)
+        const playlist = [
+            "https://www.dropbox.com/scl/fi/jlxvc07bs0vjpq0srk5a4/MOGM.mov?rlkey=9d7ev9ht0mjl3nvpqtddeh1n4&raw=1",
+            "https://www.dropbox.com/scl/fi/fxq0pyy4ka7or54zgn87i/OMGM2.mp4?rlkey=29jvysyv0ce3424vvotg8u9ix&st=gn49huca&raw=1"
+        ];
 
-        // Init: Masuk ke halaman
-        enterBtn.onclick = () => {
-            app.classList.add('is-loaded');
-            v.play();
-            updatePlayBtn();
+        let index = 0;
+        const vid = document.getElementById('vid');
+        const app = document.getElementById('app');
+        const playIco = document.getElementById('playIco');
+        const barFill = document.getElementById('barFill');
+
+        // Fungsi Load Video
+        function loadVid(i) {
+            if (i >= playlist.length) i = 0;
+            index = i;
+            
+            vid.pause();
+            vid.src = playlist[index]; // Menggunakan src langsung lebih stabil
+            vid.load();
+            
+            // Mencoba play (Browser butuh muted=true di awal)
+            vid.play().catch(e => console.log("Play diblokir, menunggu klik user."));
+            updateIcon();
+        }
+
+        // Trigger Pertama (Reveal + Unmute)
+        document.getElementById('startTrigger').onclick = () => {
+            app.classList.add('active');
+            vid.muted = false; // NYALAKAN SUARA SETELAH KLIK
+            loadVid(0);
         };
 
-        // Update Slider saat video jalan
-        v.ontimeupdate = () => {
-            if (!v.duration) return;
-            const pct = (v.currentTime / v.duration) * 100;
-            seek.value = v.currentTime;
-            seek.max = v.duration;
-            curTxt.innerText = fmtTime(v.currentTime);
-            durTxt.innerText = fmtTime(v.duration);
+        // Otomatis Lanjut
+        vid.onended = () => playNext();
+
+        function playNext() {
+            index++;
+            loadVid(index);
+        }
+
+        function togglePlay() {
+            vid.paused ? vid.play() : vid.pause();
+            updateIcon();
+        }
+
+        function updateIcon() {
+            playIco.querySelector('path').setAttribute('d', vid.paused ? "M8 5v14l11-7z" : "M6 19h4V5H6v14zm8-14v14h4V5h-4z");
+        }
+
+        vid.ontimeupdate = () => {
+            if (vid.duration) {
+                const pct = (vid.currentTime / vid.duration) * 100;
+                barFill.style.width = pct + "%";
+                document.getElementById('t1').innerText = fmtTime(vid.currentTime);
+                document.getElementById('t2').innerText = fmtTime(vid.duration);
+            }
         };
 
-        // DRAG FUNCTIONALITY (Geser Slider)
-        seek.oninput = () => {
-            v.currentTime = seek.value;
+        document.getElementById('barBg').onclick = (e) => {
+            const pct = e.offsetX / e.target.offsetWidth;
+            vid.currentTime = pct * vid.duration;
         };
 
-        // Play/Pause
-        function toggleV() {
-            v.paused ? v.play() : v.pause();
-            updatePlayBtn();
+        function skip(v) { vid.currentTime += v; }
+        function fmtTime(t) {
+            let m = Math.floor(t / 60), s = Math.floor(t % 60);
+            return m + ":" + (s < 10 ? '0' : '') + s;
         }
 
-        function updatePlayBtn() {
-            pIcon.querySelector('path').setAttribute('d', v.paused ? "M8 5v14l11-7z" : "M6 19h4V5H6v14zm8-14v14h4V5h-4z");
-        }
-
-        // Stop
-        function stopVid() {
-            v.pause(); v.currentTime = 0;
-            updatePlayBtn();
-        }
-
-        // Fast Forward (Speed)
-        function fwd() { v.playbackRate = 4.0; }
-        function nrm() { v.playbackRate = 1.0; }
-
-        // Reverse (Hold)
-        function startRev() {
-            v.pause();
-            revTask = setInterval(() => {
-                if(v.currentTime > 0.1) v.currentTime -= 0.1;
-                else endRev();
-            }, 40);
-        }
-        function endRev() { clearInterval(revTask); v.play(); }
-
-        // Format Time (00:00)
-        function fmtTime(s) {
-            let m = Math.floor(s / 60);
-            s = Math.floor(s % 60);
-            return (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
-        }
-
-        // Fullscreen
-        function fullS() {
-            const container = document.getElementById('videoContainer');
-            if (!document.fullscreenElement) container.requestFullscreen();
-            else document.exitFullscreen();
-        }
-
-        // Keyboard Space
-        window.onkeydown = (e) => { if(e.code === "Space") toggleV(); };
+        // Emergency Fix: Jika video error/tidak load
+        vid.onerror = () => {
+            console.error("Video gagal dimuat, mencoba format berikutnya...");
+            playNext();
+        };
     </script>
 </body>
 </html>
